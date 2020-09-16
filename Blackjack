@@ -1,0 +1,127 @@
+-- Authors: Victor Sellhed, Pontus Mattsson, Vincent Wahlgren
+
+module Blackjack where
+
+import Cards
+import RunGame
+import Test.QuickCheck hiding (shuffle)
+
+
+--A premande hand of 2 cards
+hand2 :: Hand
+hand2 = [Card (Numeric 2) Hearts, Card Jack Spades]
+
+--show how the size function works in-depth
+sizeSteps :: [Int]
+sizeSteps = [ size hand2
+            , size (Card (Numeric 2) Hearts : (Card Jack Spades : []))
+            , size (Card Jack Spades : []) + 1
+            , size [] + 2 
+            , 2
+            ]
+
+--examples of a card and a hand
+aCard1 :: Card
+aCard1 = (Card Ace Spades)
+
+aCard2 :: Card
+aCard2 = (Card King Hearts)
+
+aHand :: Hand
+aHand = [aCard1, aCard2]
+
+-- Shows a card in a better manner, e.g Ace of Spades
+displayCard :: Card -> String
+displayCard x = displayRank (rank x) ++ " of " ++ displaySuit (suit x)
+
+-- Takes the Rank of a card and returns it as a string
+displayRank :: Rank -> String
+displayRank King        = "King"
+displayRank Queen       = "Queen"
+displayRank Jack        = "Jack"
+displayRank Ace         = "Ace"
+displayRank (Numeric a) = show a
+
+-- Takes the suit and returns it as  a string
+displaySuit :: Suit -> String
+displaySuit Spades   = "Spades"
+displaySuit Clubs    = "Clubs"
+displaySuit Hearts   = "Hearts"
+displaySuit Diamonds = "Diamonds"
+
+-- takes a hand and displays it as a string
+display :: Hand -> String
+display []     = ""
+display (x:xs) = displayCard x ++ "\n" ++  display xs
+
+-- asigns an appropriate value for a rank
+valueRank :: Rank -> Int
+valueRank King        = 10 
+valueRank Queen       = 10 
+valueRank Jack        = 10 
+valueRank Ace         = 11
+valueRank (Numeric x) = x
+
+-- Gives a card the correct value depending on rank
+valueCard :: Card -> Int
+valueCard x = valueRank (rank x)
+
+--checks the number of aces in a given hand
+numberOfAces :: Hand -> Int
+numberOfAces [] = 0
+numberOfAces (x:xs)
+    | rank x == Ace = 1 + numberOfAces(xs)
+    | otherwise     = numberOfAces(xs)
+
+-- computes the value of a whole hand
+handValue :: Hand -> Int
+handValue []     = 0
+handValue (x:xs) = valueRank (rank x) + handValue xs
+
+-- How much lower the value of an Ace is when they exceed 2
+reduceAceValue :: Int
+reduceAceValue = (-10)
+
+-- Reduces the ammount aces are woth if your hand exceeds 21 points.
+value :: Hand -> Int
+value x 
+    | handValue x > 21 = handValue x + reduceAceValue * numberOfAces x
+    | otherwise        = handValue x
+
+-- checks if the players score is over 21 
+gameOver :: Hand -> Bool
+gameOver x = value x > 21 
+
+-- Checks if either player has lost. If not it checks if the bank has won, beacuse otherwise the Player has. Also the bank wins if both players go bust.
+winner :: Hand -> Hand -> Player
+winner g b 
+    | gameOver g         = Bank
+    | gameOver b         = Guest
+    | value g <= value b = Bank
+    | otherwise          = Guest
+
+allRanks :: [Rank]
+allRanks = [Numeric (a) | a <- [2..10]] ++ [Jack, Queen, King, Ace]
+
+allSuits :: [Suit]
+allSuits = [Hearts, Diamonds, Spades, Clubs]
+
+fullDeck :: Deck
+fullDeck = [(Card x y) | x <- allRanks, y <- allSuits]
+
+prop_size_fullDeck :: Bool
+prop_size_fullDeck = size fullDeck == 52
+
+draw :: Deck -> Hand -> (Deck, Hand)
+draw d h 
+    | d == []   = error "draw: The deck is empty."
+    | otherwise =  (drop 1 d, take 1 (d) ++ h) 
+
+playBank :: Deck -> Hand
+playBank d = bankDraws d []
+
+bankDraws :: Deck -> Hand -> Hand
+bankDraws d bankHand 
+    | value bankHand >= 16 = bankHand
+    | otherwise            = bankDraws d' bankHand'
+    where (d', bankHand') = draw d bankHand
